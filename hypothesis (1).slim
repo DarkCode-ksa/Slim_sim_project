@@ -1,0 +1,65 @@
+initialize() {
+    initializeSLiMOptions(keepPedigrees=T);
+    defineConstant("L", 500000);  // 0.5 Mb for faster simulation
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, L-1);
+    initializeRecombinationRate(1e-8);
+    initializeMutationRate(1e-8);
+    initializeSex("A");
+}
+
+1 {
+    sim.addSubpop("p1", 2);
+    p1.individuals[0].setSex("M");
+    p1.individuals[1].setSex("F");
+    catn("Adam & Eve started");
+}
+
+1:300 late() {
+    size = min(10000, asInteger(2 * exp(0.02 * sim.generation)));
+    p1.setSubpopulationSize(size);
+}
+
+100 late() { 
+    males = p1.individuals[p1.individuals.sex == "M"];
+    if (males.size() > 5) p1.removeIndividuals(sample(males, asInteger(0.7 * males.size())));
+    catn("Patrilineal skew");
+}
+
+200 late() {
+    n = asInteger(p1.individualCount * 0.5);
+    if (n > 5) {
+        p2 = sim.addSubpopSplit("p2", n, p1);
+        catn("Wave of replacement: " + n);
+    }
+}
+
+300 late() {
+    females = p1.individuals[p1.individuals.sex == "F"];
+    n = asInteger(max(1, 0.1 * females.size()));
+    for (ind in sample(females, n)) {
+        for (i in 1:5) ind.genomes[0].addNewDrawnMutation(m1, rdunif(1, 0, L-1));
+    }
+    catn("X duplication in " + n + " females");
+}
+
+4000 late() {
+    catn("\n=== RESULTS ===");
+    catn("Population: " + p1.individualCount);
+    
+    // Estimate coalescence time
+    muts = sim.mutations;
+    if (size(muts) > 0) {
+        ages = sim.generation - muts.originGeneration;
+        catn("Mean mutation age: " + mean(ages) + " gen (~" + (mean(ages)*25) + " years)");
+    }
+    
+    het = p1.heterozygosity();
+    catn("Heterozygosity: " + format("%.6f", het));
+    
+    p1.genomes.outputVCF("output.vcf");
+    sim.treeSeqOutput("trees.trees");
+    catn("Saved: output.vcf, trees.trees");
+    sim.simulationFinished();
+}
