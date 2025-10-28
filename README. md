@@ -1,0 +1,13 @@
+# SLiM Simulation Project
+
+## Overview
+
+This project simulates a genetic model using SLiM, focusing on hypothesis testing.
+
+## Setup
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/slim_sim_project.git
+   cd slim_sim_project
