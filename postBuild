@@ -1,40 +1,58 @@
 #!/bin/bash
-set -e  # توقف عند أول خطأ
+set -euo pipefail
 
-echo "=== تثبيت SLiM لمشروع slim_sim_project ==="
+# === ألوان ===
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# إنشاء مجلد bin محلي
-mkdir -p $HOME/.local/bin
-export PATH=$HOME/.local/bin:$PATH
+log()    { echo -e "${BLUE}[INFO] $1${NC}"; }
+success(){ echo -e "${GREEN}تم بنجاح: $1${NC}"; }
+error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
 
-# التحقق من الأدوات
-for cmd in cmake g++ make wget tar; do
-    command -v $cmd >/dev/null 2>&1 || { echo "خطأ: $cmd غير مثبت"; exit 1; }
-done
+log "بدء تثبيت الأدوات الأساسية عبر apt..."
 
-# تنزيل SLiM 4.2 إذا لم يكن موجودًا
-if [ ! -d "SLiM-4.2" ]; then
-    echo "تنزيل SLiM-4.2 من GitHub..."
-    wget -q https://github.com/MesserLab/SLiM/releases/download/v4.2/SLiM-4.2.tar.gz
-    tar -xzf SLiM-4.2.tar.gz
-fi
+# تثبيت cmake وأدوات البناء عبر apt (قبل conda)
+apt-get update -qq > /dev/null
+apt-get install -y -qq cmake g++ make git wget > /dev/null || error "فشل تثبيت cmake عبر apt"
 
-cd SLiM-4.2
+success "تم تثبيت cmake, g++, make, git"
 
-# تنظيف أي بناء سابق
-rm -rf build
-mkdir build && cd build
+# === تثبيت SLiM ===
+SLIM_DIR="$HOME/SLiM"
+BIN_DIR="/usr/local/bin"
+SLIM_BIN="$BIN_DIR/slim"
 
-# تكوين وبناء
-echo "تشغيل cmake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release
+log "استنساخ SLiM..."
+rm -rf "$SLIM_DIR"
+git clone --depth 1 https://github.com/MesserLab/SLiM.git "$SLIM_DIR" || error "فشل الاستنساخ"
 
-echo "تشغيل make..."
-make -j$(nproc)
+cd "$SLIM_DIR"
+mkdir -p build && cd build
 
-# تثبيت الثنائي في مجلد المستخدم
-cp slim $HOME/.local/bin/slim
+log "تشغيل cmake..."
+cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
 
+log "تشغيل make..."
+make -j$(nproc) || error "فشل make"
+
+log "تثبيت slim..."
+cp slim "$SLIM_BIN" || error "فشل النسخ"
+
+success "تم تثبيت SLiM: $(slim -version | head -n1)"
+
+# === تثبيت pyslim ===
+log "تثبيت pyslim عبر pip..."
+pip install --no-cache-dir pyslim msprime || warn "فشل pip"
+
+# === إنشاء مثال ===
+mkdir -p ~/examples
+cat > ~/examples/test.slim << 'EOF'
+initialize() {
+    initializeMutationType("m1", 0.5, "f", -0.1);
+    initializeGenomicElementType("g1", m1, 1.0
 cd ../../
 rm -rf SLiM-4.2 SLiM-4.2.tar.gz
 
