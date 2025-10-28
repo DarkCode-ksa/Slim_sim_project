@@ -1,0 +1,18 @@
+// فرضية تطورية: نموذج Wright-Fisher مع انتقاء إيجابي
+initialize() {
+    initializeSLiMModelType("WF");
+    initializeMutationRate(1e-7);
+    initializeMutationType("m1", 0.5, "f", 0.01);
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, 9999);
+    initializeRecombinationRate(1e-8);
+}
+
+1 {
+    sim.addSubpop("p1", 1000);
+}
+
+1000 late() {
+    catn("المحاكاة اكتملت عند الجيل: ", sim.generation);
+    sim.simulationFinished();
+}
