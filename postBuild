@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# === تعريف CONDA_PREFIX ===
+CONDA_PREFIX="${CONDA_PREFIX:-/opt/conda}"
+
 # === ألوان ===
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -14,23 +17,13 @@ error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
 log "بدء تثبيت SLiM..."
 
 # === 1. التحقق من الأدوات ===
-check_tool() {
-    local tool="$1"
-    local alt="${2:-}"
-    if command -v "$tool" &> /dev/null; then return 0; fi
-    if [[ -n "$alt" ]] && command -v "$alt" &> /dev/null; then
-        log "تم العثور على: $alt"
-        return 0
+for tool in git cmake g++ make; do
+    if ! command -v "$tool" &> /dev/null; then
+        error "الأداة '$tool' غير مثبتة! تحقق من environment.yml"
     fi
-    error "الأداة '$tool' مفقودة!"
-}
+done
 
-check_tool git
-check_tool cmake
-check_tool g++ c++
-check_tool make
-
-# === 2. بناء SLiM ===
+# === 2. استنساخ وبناء SLiM ===
 SLIM_DIR="$HOME/SLiM"
 SLIM_BIN="$HOME/.local/bin/slim"
 mkdir -p "$HOME/.local/bin"
@@ -45,31 +38,30 @@ else
     cd "$SLIM_DIR"
     mkdir -p build && cd build
 
-    log "تشغيل cmake مع مسارات GSL و Eigen..."
-    cmake .. \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DGSL_ROOT_DIR=$CONDA_PREFIX \
-      -DEIGEN3_INCLUDE_DIR=$CONDA_PREFIX/include/eigen3 \
-      || error "فشل cmake: تأكد من gsl و eigen"
+    log "تشغيل cmake..."
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DGSL_ROOT_DIR="$CONDA_PREFIX" \
+        -DEIGEN3_INCLUDE_DIR="$CONDA_PREFIX/include/eigen3" \
+        || error "فشل cmake"
 
     log "تشغيل make..."
     make -j$(nproc) || error "فشل make"
 
-    log "نسخ slim..."
+    log "نسخ slim إلى $SLIM_BIN..."
     cp slim "$SLIM_BIN" || error "فشل النسخ"
 
-    success "تم بناء SLiM: $($SLIM_BIN -version | head -n1)"
+    success "تم تثبيت SLiM: $($SLIM_BIN -version | head -n1)"
 fi
 
-# === 3. PATH ===
+# === 3. تفعيل PATH ===
 export PATH="$HOME/.local/bin:$PATH"
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 
-# === 4. pip ===
+# === 4. تثبيت pyslim/msprime ===
 log "تثبيت pyslim و msprime..."
-pip install --no-cache-dir pyslim msprime
+pip install --no-cache-dir pyslim msprime || error "فشل تثبيت pyslim"
 
-# === 5. مثال ===
+# === 5. إنشاء مثال ===
 EXAMPLE_DIR="$HOME/examples"
 mkdir -p "$EXAMPLE_DIR"
 cat > "$EXAMPLE_DIR/simple.slim" << 'EOF'
@@ -86,12 +78,12 @@ initialize() {
 }
 EOF
 
-success "مثال جاهز: $EXAMPLE_DIR/simple.slim"
+success "مثال جاهز: slim $EXAMPLE_DIR/simple.slim"
 
 # === 6. اختبار ===
 log "اختبار SLiM..."
 if slim "$EXAMPLE_DIR/simple.slim" | grep -q "تم بنجاح"; then
-    success "نجح كل شيء! جرب: slim $EXAMPLE_DIR/simple.slim"
+    success "كل شيء يعمل!"
 else
     error "فشل الاختبار!"
 fi
