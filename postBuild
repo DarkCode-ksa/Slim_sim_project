@@ -1,0 +1,24 @@
+#!/bin/bash
+set -e
+
+echo "بدء تثبيت SLiM..."
+
+command -v cmake >/dev/null || { echo "خطأ: cmake غير مثبت"; exit 1; }
+command -v g++ >/dev/null || { echo "خطأ: g++ غير مثبت"; exit 1; }
+
+if [ ! -d "slim" ]; then
+    git clone --depth 1 https://github.com/MesserLab/SLiM.git slim
+fi
+
+cd slim
+rm -rf build
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+
+mkdir -p ~/bin
+cp slim ~/bin/slim
+export PATH=$PATH:~/bin
+
+echo "اختبار SLiM..."
+~/bin/slim -version && echo "تم تثبيت SLiM بنجاح!"
