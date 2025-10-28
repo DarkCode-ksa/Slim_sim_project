@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# === ألوان للتوضيح ===
+# === ألوان ===
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
@@ -13,14 +13,26 @@ error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
 
 log "بدء تثبيت SLiM..."
 
-# === 1. التحقق من الأدوات ===
-for tool in git cmake g++ make; do
-    if ! command -v "$tool" &> /dev/null; then
-        error "الأداة '$tool' غير مثبتة! تحقق من environment.yml"
+# === 1. التحقق من الأدوات (g++ أو c++) ===
+check_tool() {
+    local tool="$1"
+    local alt="${2:-}"
+    if command -v "$tool" &> /dev/null; then
+        return 0
+    elif [[ -n "$alt" ]] && command -v "$alt" &> /dev/null; then
+        log "تم العثور على: $alt"
+        return 0
+    else
+        error "الأداة '$tool' مفقودة! تأكد من environment.yml"
     fi
-done
+}
 
-# === 2. استنساخ وبناء SLiM ===
+check_tool git
+check_tool cmake
+check_tool g++ c++    # يقبل أي منهما
+check_tool make
+
+# === 2. بناء SLiM ===
 SLIM_DIR="$HOME/SLiM"
 SLIM_BIN="$HOME/.local/bin/slim"
 mkdir -p "$HOME/.local/bin"
@@ -36,30 +48,26 @@ else
     mkdir -p build && cd build
 
     log "تشغيل cmake..."
-    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
+    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake (تحقق من gsl و eigen)"
 
     log "تشغيل make..."
     make -j$(nproc) || error "فشل make"
 
-    log "نسخ slim إلى $SLIM_BIN..."
+    log "تثبيت slim..."
     cp slim "$SLIM_BIN" || error "فشل النسخ"
 
-    success "تم تثبيت SLiM: $($SLIM_BIN -version | head -n1)"
+    success "تم بناء SLiM: $($SLIM_BIN -version | head -n1)"
 fi
 
-# === 3. تفعيل PATH فورًا + دائمًا ===
+# === 3. PATH ===
 export PATH="$HOME/.local/bin:$PATH"
-{
-    echo ''
-    echo '# === SLiM PATH (auto-added by postBuild) ==='
-    echo 'export PATH="$HOME/.local/bin:$PATH"'
-} >> "$HOME/.bashrc"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 
-# === 4. تثبيت pyslim/msprime ===
-log "تثبيت pyslim و msprime عبر pip..."
-pip install --no-cache-dir pyslim msprime || error "فشل تثبيت pyslim"
+# === 4. تثبيت Python packages ===
+log "تثبيت pyslim و msprime..."
+pip install --no-cache-dir pyslim msprime || error "فشل pip"
 
-# === 5. إنشاء مثال عملي ===
+# === 5. مثال ===
 EXAMPLE_DIR="$HOME/examples"
 mkdir -p "$EXAMPLE_DIR"
 cat > "$EXAMPLE_DIR/simple.slim" << 'EOF'
@@ -76,13 +84,12 @@ initialize() {
 }
 EOF
 
-success "مثال جاهز: slim $EXAMPLE_DIR/simple.slim"
+success "مثال جاهز: $EXAMPLE_DIR/simple.slim"
 
-# === 6. اختبار نهائي ===
+# === 6. اختبار ===
 log "اختبار SLiM..."
 if slim "$EXAMPLE_DIR/simple.slim" | grep -q "تم بنجاح"; then
-    success "كل شيء يعمل! افتح Terminal واكتب:"
-    echo -e "${GREEN}slim $EXAMPLE_DIR/simple.slim${NC}"
+    success "نجح كل شيء! جرب: slim $EXAMPLE_DIR/simple.slim"
 else
-    error "فشل تشغيل المثال"
+    error "فشل الاختبار!"
 fi
