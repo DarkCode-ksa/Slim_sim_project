@@ -1,22 +1,15 @@
+# environment.yml
 name: slim-env
 channels:
   - conda-forge
 dependencies:
   - python=3.9
-  - jupyter
+  - jupyterlab
   - numpy
   - pandas
   - matplotlib
   - tskit
-  - gcc_linux-64
-  - gxx_linux-64
-  - make
-  - gsl
-  
-  
-
-
-
-
-
-  
+  - pip
+  - pip:
+      - pyslim
+      - msprime
