@@ -1,20 +1,25 @@
-FROM continuumio/miniconda3
+FROM jupyter/base-notebook
 
-# إعداد المستخدم jovyan لتوافق MyBinder
-ARG NB_USER=jovyan
-ARG NB_UID=1000
-RUN useradd -m -s /bin/bash -N -u $NB_UID $NB_USER
-USER $NB_USER
-WORKDIR /home/$NB_USER
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    wget \
+    cmake \
+    libgsl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# نسخ جميع الملفات في نفس المجلد
-COPY . /home/$NB_USER/
+# Set up environment
+COPY environment.yml /tmp/environment.yml
+RUN conda env create -f /tmp/environment.yml && conda clean -a
 
-# جعل postBuild قابل للتنفيذ
-RUN chmod +x postBuild
+# Copy SLiM installation script
+COPY postBuild /tmp/postBuild
+RUN bash /tmp/postBuild
 
-# تنفيذ postBuild عند البناء
-RUN ./postBuild
+# Set working directory
+WORKDIR /home/jovyan
 
-# CMD لفتح JupyterLab
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--no-browser", "--allow-root"]
+# Expose port
+EXPOSE 8888
