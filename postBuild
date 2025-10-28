@@ -13,23 +13,21 @@ error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
 
 log "بدء تثبيت SLiM..."
 
-# === 1. التحقق من الأدوات (g++ أو c++) ===
+# === 1. التحقق من الأدوات ===
 check_tool() {
     local tool="$1"
     local alt="${2:-}"
-    if command -v "$tool" &> /dev/null; then
-        return 0
-    elif [[ -n "$alt" ]] && command -v "$alt" &> /dev/null; then
+    if command -v "$tool" &> /dev/null; then return 0; fi
+    if [[ -n "$alt" ]] && command -v "$alt" &> /dev/null; then
         log "تم العثور على: $alt"
         return 0
-    else
-        error "الأداة '$tool' مفقودة! تأكد من environment.yml"
     fi
+    error "الأداة '$tool' مفقودة!"
 }
 
 check_tool git
 check_tool cmake
-check_tool g++ c++    # يقبل أي منهما
+check_tool g++ c++
 check_tool make
 
 # === 2. بناء SLiM ===
@@ -47,13 +45,17 @@ else
     cd "$SLIM_DIR"
     mkdir -p build && cd build
 
-    log "تشغيل cmake..."
-    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake (تحقق من gsl و eigen)"
+    log "تشغيل cmake مع مسارات GSL و Eigen..."
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGSL_ROOT_DIR=$CONDA_PREFIX \
+      -DEIGEN3_INCLUDE_DIR=$CONDA_PREFIX/include/eigen3 \
+      || error "فشل cmake: تأكد من gsl و eigen"
 
     log "تشغيل make..."
     make -j$(nproc) || error "فشل make"
 
-    log "تثبيت slim..."
+    log "نسخ slim..."
     cp slim "$SLIM_BIN" || error "فشل النسخ"
 
     success "تم بناء SLiM: $($SLIM_BIN -version | head -n1)"
@@ -63,9 +65,9 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 
-# === 4. تثبيت Python packages ===
+# === 4. pip ===
 log "تثبيت pyslim و msprime..."
-pip install --no-cache-dir pyslim msprime || error "فشل pip"
+pip install --no-cache-dir pyslim msprime
 
 # === 5. مثال ===
 EXAMPLE_DIR="$HOME/examples"
