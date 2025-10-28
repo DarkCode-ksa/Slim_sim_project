@@ -1,24 +1,45 @@
 #!/bin/bash
-set -e
+set -e  # توقف عند أول خطأ
 
-echo "Installing SLiM from source..."
+echo "=== تثبيت SLiM لمشروع slim_sim_project ==="
 
-# Download SLiM 4.2
-wget -q https://github.com/MesserLab/SLiM/releases/download/v4.2/SLiM-4.2.tar.gz
-tar -xzf SLiM-4.2.tar.gz
+# إنشاء مجلد bin محلي
+mkdir -p $HOME/.local/bin
+export PATH=$HOME/.local/bin:$PATH
+
+# التحقق من الأدوات
+for cmd in cmake g++ make wget tar; do
+    command -v $cmd >/dev/null 2>&1 || { echo "خطأ: $cmd غير مثبت"; exit 1; }
+done
+
+# تنزيل SLiM 4.2 إذا لم يكن موجودًا
+if [ ! -d "SLiM-4.2" ]; then
+    echo "تنزيل SLiM-4.2 من GitHub..."
+    wget -q https://github.com/MesserLab/SLiM/releases/download/v4.2/SLiM-4.2.tar.gz
+    tar -xzf SLiM-4.2.tar.gz
+fi
+
 cd SLiM-4.2
 
-# Build
+# تنظيف أي بناء سابق
+rm -rf build
 mkdir build && cd build
+
+# تكوين وبناء
+echo "تشغيل cmake..."
 cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j2
 
-# Install slim binary
-cp slim /usr/local/bin/
-cd ../..
+echo "تشغيل make..."
+make -j$(nproc)
 
-# Clean up
+# تثبيت الثنائي في مجلد المستخدم
+cp slim $HOME/.local/bin/slim
+
+cd ../../
 rm -rf SLiM-4.2 SLiM-4.2.tar.gz
 
-echo "SLiM installed successfully!"
-slim -version
+# اختبار التثبيت
+echo "اختبار SLiM..."
+slim -version || { echo "فشل تشغيل SLiM"; exit 1; }
+
+echo "تم تثبيت SLiM بنجاح!"
