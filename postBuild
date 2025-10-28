@@ -1,36 +1,88 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-echo "بدء تثبيت SLiM..."
+# === ألوان للتوضيح ===
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# التحقق من الأدوات (من conda)
+log()    { echo -e "${BLUE}[INFO] $1${NC}"; }
+success(){ echo -e "${GREEN}تم: $1${NC}"; }
+error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
+
+log "بدء تثبيت SLiM..."
+
+# === 1. التحقق من الأدوات ===
 for tool in git cmake g++ make; do
-  if ! command -v "$tool" &> /dev/null; then
-    echo "خطأ: $tool غير مثبت"
-    exit 1
-  fi
+    if ! command -v "$tool" &> /dev/null; then
+        error "الأداة '$tool' غير مثبتة! تحقق من environment.yml"
+    fi
 done
 
-# استنساخ SLiM
-rm -rf ~/SLiM
-git clone --depth 1 https://github.com/MesserLab/SLiM.git ~/SLiM
-cd ~/SLiM
-mkdir build && cd build
+# === 2. استنساخ وبناء SLiM ===
+SLIM_DIR="$HOME/SLiM"
+SLIM_BIN="$HOME/.local/bin/slim"
+mkdir -p "$HOME/.local/bin"
 
-# بناء
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+if [ -f "$SLIM_BIN" ] && "$SLIM_BIN" -version &> /dev/null; then
+    success "SLiM موجود: $($SLIM_BIN -version | head -n1)"
+else
+    log "استنساخ SLiM..."
+    rm -rf "$SLIM_DIR"
+    git clone --depth 1 https://github.com/MesserLab/SLiM.git "$SLIM_DIR"
 
-# تثبيت
-mkdir -p ~/.local/bin
-cp slim ~/.local/bin/slim
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    cd "$SLIM_DIR"
+    mkdir -p build && cd build
+
+    log "تشغيل cmake..."
+    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
+
+    log "تشغيل make..."
+    make -j$(nproc) || error "فشل make"
+
+    log "نسخ slim إلى $SLIM_BIN..."
+    cp slim "$SLIM_BIN" || error "فشل النسخ"
+
+    success "تم تثبيت SLiM: $($SLIM_BIN -version | head -n1)"
+fi
+
+# === 3. تفعيل PATH فورًا + دائمًا ===
 export PATH="$HOME/.local/bin:$PATH"
+{
+    echo ''
+    echo '# === SLiM PATH (auto-added by postBuild) ==='
+    echo 'export PATH="$HOME/.local/bin:$PATH"'
+} >> "$HOME/.bashrc"
 
-echo "تم تثبيت SLiM في ~/.local/bin"
-slim -version
+# === 4. تثبيت pyslim/msprime ===
+log "تثبيت pyslim و msprime عبر pip..."
+pip install --no-cache-dir pyslim msprime || error "فشل تثبيت pyslim"
 
-# تثبيت pyslim
-pip install pyslim msprime
+# === 5. إنشاء مثال عملي ===
+EXAMPLE_DIR="$HOME/examples"
+mkdir -p "$EXAMPLE_DIR"
+cat > "$EXAMPLE_DIR/simple.slim" << 'EOF'
+initialize() {
+    initializeMutationType("m1", 0.5, "f", -0.1);
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, 9999);
+    initializeRecombinationRate(1e-8);
+}
+1 { sim.addSubpop("p1", 500); }
+1000 late() {
+    cat("تم بنجاح! التنوع: " + p1.meanHeterozygosity() + "\n");
+    sim.outputFull("output.trees");
+}
+EOF
 
-echo "جاهز! جرب: slim -version"
+success "مثال جاهز: slim $EXAMPLE_DIR/simple.slim"
+
+# === 6. اختبار نهائي ===
+log "اختبار SLiM..."
+if slim "$EXAMPLE_DIR/simple.slim" | grep -q "تم بنجاح"; then
+    success "كل شيء يعمل! افتح Terminal واكتب:"
+    echo -e "${GREEN}slim $EXAMPLE_DIR/simple.slim${NC}"
+else
+    error "فشل تشغيل المثال"
+fi
