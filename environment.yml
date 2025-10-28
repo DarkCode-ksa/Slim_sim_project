@@ -19,3 +19,18 @@ dependencies:
   - pip:
       - pyslim
       - msprime
+  dependencies:
+  - python=3.9
+  - jupyterlab
+  - numpy
+  - pandas
+  - matplotlib
+  - tskit
+  - cmake
+  - eigen
+  - gsl
+  - git
+  - pip
+  - pip:
+      - pyslim
+      - msprime
