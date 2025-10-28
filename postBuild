@@ -1,65 +1,36 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
-# === ألوان ===
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m'
+echo "بدء تثبيت SLiM..."
 
-log()    { echo -e "${BLUE}[INFO] $1${NC}"; }
-success(){ echo -e "${GREEN}تم بنجاح: $1${NC}"; }
-error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
-
-log "بدء تثبيت SLiM..."
-
-# === التحقق من الأدوات ===
+# التحقق من الأدوات (من conda)
 for tool in git cmake g++ make; do
-    if ! command -v "$tool" &> /dev/null; then
-        error "الأداة '$tool' غير موجودة! تحقق من environment.yml"
-    fi
+  if ! command -v "$tool" &> /dev/null; then
+    echo "خطأ: $tool غير مثبت"
+    exit 1
+  fi
 done
 
-# === تثبيت SLiM ===
-SLIM_DIR="$HOME/SLiM"
-BIN_DIR="/usr/local/bin"
-SLIM_BIN="$BIN_DIR/slim"
+# استنساخ SLiM
+rm -rf ~/SLiM
+git clone --depth 1 https://github.com/MesserLab/SLiM.git ~/SLiM
+cd ~/SLiM
+mkdir build && cd build
 
-if [ -f "$SLIM_BIN" ] && "$SLIM_BIN" -version &> /dev/null; then
-    success "SLiM موجود: $("$SLIM_BIN" -version | head -n1)"
-else
-    log "استنساخ SLiM..."
-    rm -rf "$SLIM_DIR"
-    git clone --depth 1 https://github.com/MesserLab/SLiM.git "$SLIM_DIR"
+# بناء
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
 
-    cd "$SLIM_DIR"
-    mkdir -p build && cd build
+# تثبيت
+mkdir -p ~/.local/bin
+cp slim ~/.local/bin/slim
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"
 
-    log "تشغيل cmake..."
-    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
+echo "تم تثبيت SLiM في ~/.local/bin"
+slim -version
 
-    log "تشغيل make..."
-    make -j$(nproc) || error "فشل make"
+# تثبيت pyslim
+pip install pyslim msprime
 
-    log "تثبيت slim..."
-    sudo cp slim "$SLIM_BIN" || cp slim "$HOME/.local/bin/slim" || error "فشل النسخ"
-
-    success "تم تثبيت SLiM: $(slim -version | head -n1)"
-fi
-
-# === إنشاء مثال ===
-mkdir -p ~/examples
-cat > ~/examples/test.slim << 'EOF'
-initialize() {
-    initializeMutationType("m1", 0.5, "f", -0.1);
-    initializeGenomicElementType("g1", m1, 1.0);
-    initializeGenomicElement(g1, 0, 9999);
-    initializeRecombinationRate(1e-8);
-}
-1 { sim.addSubpop("p1", 500); }
-1000 late() { cat("تم!\n"); sim.outputFull("output.trees"); }
-EOF
-
-success "تم إنشاء مثال: slim ~/examples/test.slim"
-
-echo -e "${GREEN}جاهز! جرب: slim ~/examples/test.slim${NC}"
+echo "جاهز! جرب: slim -version"
