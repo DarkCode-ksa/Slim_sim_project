@@ -1,0 +1,16 @@
+
+name: slim-env
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - cmake
+  - make
+  - gxx_linux-64
+  - git
+  - numpy
+  - matplotlib
+  - pandas
+  - seaborn
+
