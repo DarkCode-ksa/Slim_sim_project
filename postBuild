@@ -2,62 +2,64 @@
 set -euo pipefail
 
 # === ألوان ===
-RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 log()    { echo -e "${BLUE}[INFO] $1${NC}"; }
 success(){ echo -e "${GREEN}تم بنجاح: $1${NC}"; }
 error()  { echo -e "${RED}خطأ: $1${NC}"; exit 1; }
 
-log "بدء تثبيت الأدوات الأساسية عبر apt..."
+log "بدء تثبيت SLiM..."
 
-# تثبيت cmake وأدوات البناء عبر apt (قبل conda)
-apt-get update -qq > /dev/null
-apt-get install -y -qq cmake g++ make git wget > /dev/null || error "فشل تثبيت cmake عبر apt"
-
-success "تم تثبيت cmake, g++, make, git"
+# === التحقق من الأدوات ===
+for tool in git cmake g++ make; do
+    if ! command -v "$tool" &> /dev/null; then
+        error "الأداة '$tool' غير موجودة! تحقق من environment.yml"
+    fi
+done
 
 # === تثبيت SLiM ===
 SLIM_DIR="$HOME/SLiM"
 BIN_DIR="/usr/local/bin"
 SLIM_BIN="$BIN_DIR/slim"
 
-log "استنساخ SLiM..."
-rm -rf "$SLIM_DIR"
-git clone --depth 1 https://github.com/MesserLab/SLiM.git "$SLIM_DIR" || error "فشل الاستنساخ"
+if [ -f "$SLIM_BIN" ] && "$SLIM_BIN" -version &> /dev/null; then
+    success "SLiM موجود: $("$SLIM_BIN" -version | head -n1)"
+else
+    log "استنساخ SLiM..."
+    rm -rf "$SLIM_DIR"
+    git clone --depth 1 https://github.com/MesserLab/SLiM.git "$SLIM_DIR"
 
-cd "$SLIM_DIR"
-mkdir -p build && cd build
+    cd "$SLIM_DIR"
+    mkdir -p build && cd build
 
-log "تشغيل cmake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
+    log "تشغيل cmake..."
+    cmake .. -DCMAKE_BUILD_TYPE=Release || error "فشل cmake"
 
-log "تشغيل make..."
-make -j$(nproc) || error "فشل make"
+    log "تشغيل make..."
+    make -j$(nproc) || error "فشل make"
 
-log "تثبيت slim..."
-cp slim "$SLIM_BIN" || error "فشل النسخ"
+    log "تثبيت slim..."
+    sudo cp slim "$SLIM_BIN" || cp slim "$HOME/.local/bin/slim" || error "فشل النسخ"
 
-success "تم تثبيت SLiM: $(slim -version | head -n1)"
-
-# === تثبيت pyslim ===
-log "تثبيت pyslim عبر pip..."
-pip install --no-cache-dir pyslim msprime || warn "فشل pip"
+    success "تم تثبيت SLiM: $(slim -version | head -n1)"
+fi
 
 # === إنشاء مثال ===
 mkdir -p ~/examples
 cat > ~/examples/test.slim << 'EOF'
 initialize() {
     initializeMutationType("m1", 0.5, "f", -0.1);
-    initializeGenomicElementType("g1", m1, 1.0
-cd ../../
-rm -rf SLiM-4.2 SLiM-4.2.tar.gz
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, 9999);
+    initializeRecombinationRate(1e-8);
+}
+1 { sim.addSubpop("p1", 500); }
+1000 late() { cat("تم!\n"); sim.outputFull("output.trees"); }
+EOF
 
-# اختبار التثبيت
-echo "اختبار SLiM..."
-slim -version || { echo "فشل تشغيل SLiM"; exit 1; }
+success "تم إنشاء مثال: slim ~/examples/test.slim"
 
-echo "تم تثبيت SLiM بنجاح!"
+echo -e "${GREEN}جاهز! جرب: slim ~/examples/test.slim${NC}"
