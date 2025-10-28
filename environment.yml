@@ -1,20 +1,28 @@
 name: slim-env
 channels:
   - conda-forge
+  - defaults
 dependencies:
-  - python=3.9
+  # === الأساسيات ===
+  - python=3.11          # أفضل من 3.9 (pyslim يدعم حتى 3.12)
   - jupyterlab
   - numpy
   - pandas
   - matplotlib
   - tskit
-  - gcc_linux-64
-  - gxx_linux-64
-  - make
+
+  # === أدوات البناء (C++) ===
   - cmake
-  - eigen
-  - gsl
+  - make
   - git
+  - gxx_linux-64         # يوفر g++ و c++ (لا تحتاج gcc_linux-64 معه)
+  # - gcc_linux-64       # ← احذفه (يتعارض مع gxx)
+
+  # === مكتبات SLiM (مطلوبة في الرابط) ===
+  - gsl                  # GNU Scientific Library
+  - eigen                # مكتبة الجبر الخطي
+
+  # === pip packages ===
   - pip
   - pip:
       - pyslim
