@@ -10,9 +10,9 @@ initialize() {
 }
 
 1 early() {
-    sim.addSubpop("p1", 2);
-    p1.individuals[0].sex = "M";
-    p1.individuals[1].sex = "F";
+    sim.addSubpop("p1", 0);
+    p1.addIndividual(sex="M");
+    p1.addIndividual(sex="F");
     catn("Adam & Eve started");
 }
 
